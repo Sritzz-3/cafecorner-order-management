@@ -1,4 +1,4 @@
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -22,11 +22,20 @@ class AccountRoleTests(TestCase):
     def test_registration_creates_customer(self):
         response = self.client.post(
             "/accounts/register/",
-            {"username": "new-customer", "email": "customer@example.com", "password1": "pass-word-401!", "password2": "pass-word-401!"},
+            {
+                "username": "new-customer",
+                "email": "customer@example.com",
+                "password1": "pass-word-401!",
+                "password2": "pass-word-401!",
+                "role": "ADMIN",
+                "is_staff": "true",
+            },
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(User.objects.get(username="new-customer").profile.role, Profile.Role.CUSTOMER)
+        user = User.objects.get(username="new-customer")
+        self.assertEqual(user.profile.role, Profile.Role.CUSTOMER)
+        self.assertFalse(user.is_staff)
 
     def test_current_profile_requires_login(self):
         response = self.client.get("/accounts/api/me/")
@@ -35,6 +44,30 @@ class AccountRoleTests(TestCase):
 
     def test_current_profile_returns_role_for_authenticated_user(self):
         user = User.objects.create_user(username="api-customer", password="safe-password-123")
+        User.objects.create_user(username="other-customer", password="safe-password-123")
+        api_client = APIClient()
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get("/accounts/api/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["role"], Profile.Role.CUSTOMER)
+        self.assertEqual(response.data["username"], "api-customer")
+        self.assertNotIn("other-customer", str(response.data))
+
+    def test_profile_api_does_not_allow_role_updates(self):
+        user = User.objects.create_user(username="api-safe", password="safe-password-123")
+        api_client = APIClient()
+        api_client.force_authenticate(user=user)
+
+        response = api_client.put("/accounts/api/me/", {"role": "ADMIN"}, format="json")
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(user.profile.role, Profile.Role.CUSTOMER)
+
+    def test_missing_profile_is_recreated_with_safe_default(self):
+        user = User.objects.create_superuser(username="root-user", email="root@example.com", password="safe-password-123")
+        user.profile.delete()
         api_client = APIClient()
         api_client.force_authenticate(user=user)
 
