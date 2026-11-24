@@ -2,6 +2,8 @@
 
 CafeCorner is a small cafe order-management demo built with Django and Django REST Framework. Customers browse a menu and place orders; staff manage the queue and redeem coupons; admins manage the menu and view daily sales; a separate client polls for receipt-print jobs.
 
+This project is licensed under the [MIT License](LICENSE).
+
 ## Features
 
 - Role-based customer, staff, admin, and printer access.
