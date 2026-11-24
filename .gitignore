@@ -7,14 +7,23 @@ venv/
 
 # Django / local configuration
 .env
+.env.*
+!.env.example
 db.sqlite3
+*.sqlite3
+*.sqlite3-*
 *.log
 staticfiles/
 .coverage
 htmlcov/
 printed_slips.txt
+*.token
+token.txt
 
 # Editor and OS files
 .DS_Store
+._*
+.AppleDouble/
+Icon?
 .idea/
 .vscode/
