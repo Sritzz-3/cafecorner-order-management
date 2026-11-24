@@ -1,5 +1,9 @@
 # CafeCorner design
 
+## Local demo data
+
+The cross-app `seed_demo` management command lives in the neutral `core` app. Run `python manage.py seed_demo` after migrations in a `DEBUG=True` local environment. It creates demo accounts, Indian cafe menu records, and sample orders idempotently, and refuses to run with debugging disabled.
+
 ## Data model
 
 ```mermaid

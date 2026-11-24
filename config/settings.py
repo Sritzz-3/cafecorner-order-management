@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "menu.apps.MenuConfig",
     "orders.apps.OrdersConfig",
     "coupons.apps.CouponsConfig",
+    "core.apps.CoreConfig",
     "printer_api.apps.PrinterApiConfig",
 ]
 
