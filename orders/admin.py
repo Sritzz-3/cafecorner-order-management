@@ -15,7 +15,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ("status", "created_at")
     search_fields = ("customer__username",)
     inlines = (OrderItemInline,)
-    readonly_fields = ("customer", "status", "total", "created_at", "updated_at")
+    readonly_fields = ("customer", "status", "total", "created_at", "updated_at", "collected_at")
 
 
 @admin.register(OrderStatusHistory)

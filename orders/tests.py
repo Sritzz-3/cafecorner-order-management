@@ -1,9 +1,10 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 from urllib.parse import urlencode
 
 from django.contrib.auth.models import User
+from django.conf import settings
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -307,6 +308,16 @@ class OrderApiTests(TestCase):
         self.assertEqual([row["id"] for row in mine.data["results"]], [order.pk])
         self.assertEqual([row["id"] for row in queue.data["results"]], [order.pk])
 
+    def test_updated_at_advances_for_every_status_transition(self):
+        order = self.create_order()
+        previous = order.updated_at
+
+        for _ in range(3):
+            order.advance(self.staff)
+            order.refresh_from_db()
+            self.assertGreater(order.updated_at, previous)
+            previous = order.updated_at
+
     def test_queue_is_oldest_first_and_hides_completed_orders(self):
         older = self.create_order()
         newer = self.create_order()
@@ -410,16 +421,32 @@ class OrderPageTests(TestCase):
         self.assertEqual(self.client_for(self.customer).get("/orders/queue/").status_code, 403)
 
     def test_admin_dashboard_aggregates_orders_and_collected_revenue(self):
+        self.assertEqual(settings.TIME_ZONE, "Asia/Kolkata")
+        self.assertTrue(settings.USE_TZ)
+        local_midnight = timezone.make_aware(
+            datetime.combine(timezone.localdate(), time.min), timezone.get_current_timezone()
+        )
         collected = self.make_order(quantity=2)
         collected.transition_to(Order.Status.PREPARING, self.staff)
         collected.transition_to(Order.Status.READY, self.staff)
         collected.transition_to(Order.Status.COLLECTED, self.staff)
+        Order.objects.filter(pk=collected.pk).update(
+            created_at=local_midnight - timedelta(seconds=30),
+            collected_at=local_midnight + timedelta(seconds=1),
+            updated_at=timezone.now(),
+        )
         self.make_order(quantity=1)
         yesterday = self.make_order(quantity=5)
         yesterday.transition_to(Order.Status.PREPARING, self.staff)
         yesterday.transition_to(Order.Status.READY, self.staff)
         yesterday.transition_to(Order.Status.COLLECTED, self.staff)
-        Order.objects.filter(pk=yesterday.pk).update(created_at=timezone.now() - timedelta(days=1))
+        Order.objects.filter(pk=yesterday.pk).update(
+            created_at=local_midnight - timedelta(days=1, seconds=30),
+            collected_at=local_midnight - timedelta(seconds=1),
+            updated_at=timezone.now(),
+        )
+        cancelled = self.make_order(quantity=20)
+        cancelled.transition_to(Order.Status.CANCELLED, self.customer)
 
         response = self.client_for(self.admin).get("/orders/dashboard/")
 

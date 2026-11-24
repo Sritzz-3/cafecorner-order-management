@@ -55,12 +55,13 @@ def staff_queue_page(request):
 def admin_dashboard(request):
     today = timezone.localdate()
     today_orders = Order.objects.filter(created_at__date=today)
+    collected_today = Order.objects.filter(status=Order.Status.COLLECTED, collected_at__date=today)
     revenue_today = (
-        today_orders.filter(status=Order.Status.COLLECTED).aggregate(total=Sum("total"))["total"]
+        collected_today.aggregate(total=Sum("total"))["total"]
         or Decimal("0.00")
     )
     top_items = (
-        OrderItem.objects.filter(order__created_at__date=today, order__status=Order.Status.COLLECTED)
+        OrderItem.objects.filter(order__collected_at__date=today, order__status=Order.Status.COLLECTED)
         .values("menu_item_id", "menu_item__name")
         .annotate(
             quantity_sold=Sum("quantity"),

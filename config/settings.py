@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "menu.apps.MenuConfig",
     "orders.apps.OrdersConfig",
+    "coupons.apps.CouponsConfig",
 ]
 
 MIDDLEWARE = [
@@ -84,7 +85,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {"coupon_redeem": env("COUPON_REDEEM_RATE", default="10/min")},
 }
+
+COUPON_VALIDITY_DAYS = env.int("COUPON_VALIDITY_DAYS", default=30)
+if COUPON_VALIDITY_DAYS < 1:
+    raise ImproperlyConfigured("COUPON_VALIDITY_DAYS must be at least 1.")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "CafeCorner API",

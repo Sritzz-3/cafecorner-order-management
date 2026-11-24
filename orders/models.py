@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -19,6 +20,7 @@ class Order(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    collected_at = models.DateTimeField(null=True, blank=True)
 
     ALLOWED_TRANSITIONS = {
         Status.PLACED: (Status.PREPARING, Status.CANCELLED),
@@ -40,7 +42,12 @@ class Order(models.Model):
             raise InvalidOrderTransition(f"Cannot move an order from {expected} to {new_status}.")
         with transaction.atomic():
             now = timezone.now()
-            changed = Order.objects.filter(pk=self.pk, status=expected).update(status=new_status, updated_at=now)
+            if self.updated_at and now <= self.updated_at:
+                now = self.updated_at + timedelta(microseconds=1)
+            updates = {"status": new_status, "updated_at": now}
+            if new_status == self.Status.COLLECTED:
+                updates["collected_at"] = now
+            changed = Order.objects.filter(pk=self.pk, status=expected).update(**updates)
             if changed != 1:
                 raise StaleOrderStatus("This order changed before your update. Refresh the queue and try again.")
             OrderStatusHistory.objects.create(
@@ -51,6 +58,11 @@ class Order(models.Model):
             )
             self.status = new_status
             self.updated_at = now
+            if new_status == self.Status.COLLECTED:
+                self.collected_at = now
+                from coupons.services import issue_coupon_for_order
+
+                issue_coupon_for_order(self)
             return self
 
     def advance(self, actor, expected_status=None):
