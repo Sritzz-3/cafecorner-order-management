@@ -113,6 +113,25 @@
   }
 
   root.addEventListener("click", async (event) => {
+    const requeueButton = event.target.closest("[data-requeue-print-job]");
+    if (requeueButton) {
+      requeueButton.disabled = true;
+      try {
+        const response = await fetch(`/api/print-jobs/${requeueButton.dataset.requeuePrintJob}/requeue/`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "X-CSRFToken": csrf, Accept: "application/json" },
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Could not re-queue this print job.");
+        const failedCard = root.querySelector(`[data-failed-print-job="${data.id}"]`);
+        if (failedCard) failedCard.remove();
+      } catch (error) {
+        console.error(error);
+        requeueButton.disabled = false;
+      }
+      return;
+    }
     const button = event.target.closest("[data-advance-order]");
     if (!button || button.disabled) return;
     button.disabled = true;

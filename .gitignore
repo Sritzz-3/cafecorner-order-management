@@ -12,6 +12,7 @@ db.sqlite3
 staticfiles/
 .coverage
 htmlcov/
+printed_slips.txt
 
 # Editor and OS files
 .DS_Store

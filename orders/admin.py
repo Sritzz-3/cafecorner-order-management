@@ -26,5 +26,6 @@ class OrderStatusHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(PrintJob)
 class PrintJobAdmin(admin.ModelAdmin):
-    list_display = ("order", "kind", "status", "retry_count", "updated_at")
-    readonly_fields = ("order", "kind", "status", "retry_count", "last_error", "created_at", "updated_at", "printed_at")
+    list_display = ("order", "kind", "status", "retry_count", "claimed_at", "updated_at")
+    list_filter = ("status", "kind")
+    readonly_fields = ("order", "kind", "status", "retry_count", "last_error", "claimed_at", "created_at", "updated_at", "printed_at")

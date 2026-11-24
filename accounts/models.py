@@ -8,6 +8,7 @@ class Profile(models.Model):
         CUSTOMER = "CUSTOMER", "Customer"
         STAFF = "STAFF", "Staff"
         ADMIN = "ADMIN", "Admin"
+        PRINTER = "PRINTER", "Printer"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CUSTOMER)

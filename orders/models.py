@@ -117,6 +117,7 @@ class PrintJob(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
+        PRINTING = "PRINTING", "Printing"
         PRINTED = "PRINTED", "Printed"
         FAILED = "FAILED", "Failed"
 
@@ -125,6 +126,7 @@ class PrintJob(models.Model):
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
     retry_count = models.PositiveSmallIntegerField(default=0)
     last_error = models.TextField(blank=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     printed_at = models.DateTimeField(null=True, blank=True)
@@ -132,6 +134,7 @@ class PrintJob(models.Model):
     class Meta:
         ordering = ("created_at", "pk")
         constraints = [models.UniqueConstraint(fields=("order", "kind"), name="unique_print_job_kind_per_order")]
+        indexes = [models.Index(fields=("status", "created_at")), models.Index(fields=("status", "claimed_at"))]
 
     def __str__(self):
         return f"{self.get_kind_display()} for order #{self.order_id}"

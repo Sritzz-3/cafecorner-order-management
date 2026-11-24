@@ -7,7 +7,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import render
 from django.utils import timezone
 
-from orders.models import Order, OrderItem
+from orders.models import Order, OrderItem, PrintJob
 
 
 def require_role(*group_names):
@@ -48,7 +48,8 @@ def staff_queue_page(request):
         .prefetch_related("items__menu_item")
         .order_by("created_at", "pk")
     )
-    return render(request, "orders/queue.html", {"orders": orders})
+    failed_jobs = PrintJob.objects.filter(status=PrintJob.Status.FAILED).select_related("order").order_by("updated_at", "pk")
+    return render(request, "orders/queue.html", {"orders": orders, "failed_jobs": failed_jobs})
 
 
 @require_role("Admin")

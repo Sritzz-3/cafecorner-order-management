@@ -27,6 +27,7 @@ Open <http://127.0.0.1:8000/>. Replace the example `SECRET_KEY` in `.env` with a
 - Staff queue: `/orders/queue/`
 - Manager dashboard: `/orders/dashboard/`
 - API docs: `/api/docs/`
+- Printer client: see [`printer_client/README.md`](printer_client/README.md)
 
 ## Impact
 

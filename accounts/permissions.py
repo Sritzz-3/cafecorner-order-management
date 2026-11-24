@@ -23,3 +23,11 @@ class IsStaffRole(HasRole):
 
 class IsAdminRole(HasRole):
     group_name = "Admin"
+
+
+class IsPrinter(HasRole):
+    group_name = "Printer"
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and user.groups.filter(name=self.group_name).exists())

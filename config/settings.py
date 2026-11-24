@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "menu.apps.MenuConfig",
     "orders.apps.OrdersConfig",
     "coupons.apps.CouponsConfig",
+    "printer_api.apps.PrinterApiConfig",
 ]
 
 MIDDLEWARE = [
@@ -92,9 +93,18 @@ COUPON_VALIDITY_DAYS = env.int("COUPON_VALIDITY_DAYS", default=30)
 if COUPON_VALIDITY_DAYS < 1:
     raise ImproperlyConfigured("COUPON_VALIDITY_DAYS must be at least 1.")
 
+PRINT_MAX_RETRIES = env.int("PRINT_MAX_RETRIES", default=3)
+PRINT_CLAIM_TIMEOUT_SECONDS = env.int("PRINT_CLAIM_TIMEOUT_SECONDS", default=120)
+if PRINT_MAX_RETRIES < 1 or PRINT_CLAIM_TIMEOUT_SECONDS < 1:
+    raise ImproperlyConfigured("Print retry limit and claim timeout must be at least 1.")
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "CafeCorner API",
     "DESCRIPTION": "Order management API for CafeCorner.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {
+        "OrderStatus": "orders.models.Order.Status",
+        "PrintJobStatus": "orders.models.PrintJob.Status",
+    },
 }

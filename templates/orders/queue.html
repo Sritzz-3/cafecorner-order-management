@@ -21,5 +21,19 @@
     <div class="text-center bg-white border rounded-3 p-5" data-empty-queue><h2 class="h5">Queue is clear</h2><p class="text-muted mb-0">New orders will appear here automatically.</p></div>
   {% endfor %}
 </div>
+{% if failed_jobs %}
+  <section class="mt-5" aria-labelledby="failed-print-jobs-heading">
+    <h2 class="h4" id="failed-print-jobs-heading">Failed print jobs</h2>
+    <p class="text-muted small">Jobs reached the automatic retry limit. Re-queue to start a fresh retry cycle.</p>
+    {% for job in failed_jobs %}
+      <article class="card border-warning-subtle mb-2" data-failed-print-job="{{ job.id }}">
+        <div class="card-body d-flex justify-content-between align-items-center gap-3">
+          <div><strong>Order #{{ job.order_id }} · {{ job.get_kind_display }}</strong><div class="small text-danger">{{ job.last_error }}</div></div>
+          <button type="button" class="btn btn-sm btn-outline-warning" data-requeue-print-job="{{ job.id }}">Re-queue</button>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+{% endif %}
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/staff_queue.js' %}" defer></script>{% endblock %}
