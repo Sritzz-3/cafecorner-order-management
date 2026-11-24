@@ -1,16 +1,19 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from urllib.parse import urlencode
 
 from django.contrib.auth.models import User
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import Profile
 from menu.models import Category, MenuItem
 from orders.models import Order, OrderItem, OrderStatusHistory, PrintJob
-from orders.services import InvalidOrderRequest, InvalidOrderTransition, place_order
+from orders.services import InvalidOrderRequest, InvalidOrderTransition, StaleOrderStatus, place_order
 
 
 class OrderServiceTests(TestCase):
@@ -63,8 +66,25 @@ class OrderServiceTests(TestCase):
         self.tea.is_available = False
         self.tea.save(update_fields=("is_available",))
         with self.assertRaises(InvalidOrderRequest):
-            place_order(self.customer, [{"menu_item_id": self.tea.pk, "quantity": 1}])
+            place_order(
+                self.customer,
+                [
+                    {"menu_item_id": self.coffee.pk, "quantity": 1},
+                    {"menu_item_id": self.tea.pk, "quantity": 1},
+                ],
+            )
         self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(PrintJob.objects.count(), 0)
+
+    def test_print_job_failure_rolls_back_order_items_and_history(self):
+        with patch("orders.services.PrintJob.objects.create", side_effect=RuntimeError("print queue unavailable")):
+            with self.assertRaises(RuntimeError):
+                place_order(self.customer, [{"menu_item_id": self.coffee.pk, "quantity": 1}])
+
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(OrderItem.objects.count(), 0)
+        self.assertEqual(OrderStatusHistory.objects.count(), 0)
+        self.assertEqual(PrintJob.objects.count(), 0)
 
     def test_each_allowed_transition_writes_history_with_actor(self):
         order = place_order(self.customer, [{"menu_item_id": self.coffee.pk, "quantity": 1}])
@@ -91,6 +111,18 @@ class OrderServiceTests(TestCase):
 
         self.assertEqual(order.status, Order.Status.CANCELLED)
         self.assertEqual(order.history.last().new_status, Order.Status.CANCELLED)
+
+    def test_stale_expected_status_cannot_create_a_duplicate_transition(self):
+        order = place_order(self.customer, [{"menu_item_id": self.coffee.pk, "quantity": 1}])
+        stale_read = Order.objects.get(pk=order.pk)
+        order.advance(self.staff)
+
+        with self.assertRaises(StaleOrderStatus):
+            stale_read.advance(self.staff)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+        self.assertEqual(order.history.count(), 2)
 
     def test_every_invalid_transition_is_rejected_without_history_rows(self):
         path_to_status = {
@@ -200,6 +232,20 @@ class OrderApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(order.history.count(), 2)
 
+    def test_stale_staff_advance_returns_409_without_an_extra_history_row(self):
+        order = self.create_order()
+        stale_read = Order.objects.get(pk=order.pk)
+        order.advance(self.staff)
+
+        with patch("orders.api.OrderViewSet.get_object", return_value=stale_read):
+            response = self.client_for(self.staff).post(f"/api/orders/{order.pk}/advance/")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("changed before your update", response.data["detail"])
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+        self.assertEqual(order.history.count(), 2)
+
     def test_staff_can_see_queue_and_advance_but_not_cancel_or_read_history(self):
         order = self.create_order()
         other_order = self.create_order(self.other_customer)
@@ -247,6 +293,20 @@ class OrderApiTests(TestCase):
         self.assertEqual([row["id"] for row in mine.data["results"]], [newer.pk])
         self.assertEqual([row["id"] for row in queue.data["results"]], [newer.pk])
 
+    def test_updated_old_order_appears_in_polling_after_status_advance(self):
+        order = self.create_order()
+        old_updated_at = order.updated_at
+        since = urlencode({"since": (old_updated_at + timedelta(microseconds=1)).isoformat()})
+
+        order.advance(self.staff)
+        order.refresh_from_db()
+        mine = self.client_for(self.customer).get(f"/api/orders/mine/?{since}")
+        queue = self.client_for(self.staff).get(f"/api/orders/queue/?{since}")
+
+        self.assertGreater(order.updated_at, old_updated_at)
+        self.assertEqual([row["id"] for row in mine.data["results"]], [order.pk])
+        self.assertEqual([row["id"] for row in queue.data["results"]], [order.pk])
+
     def test_queue_is_oldest_first_and_hides_completed_orders(self):
         older = self.create_order()
         newer = self.create_order()
@@ -265,17 +325,109 @@ class OrderApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("since", response.data)
 
-    def test_order_list_prefetches_items_without_n_plus_one_queries(self):
+    def test_order_list_and_polling_queries_do_not_grow_with_order_count(self):
         second = MenuItem.objects.create(category=self.category, name="Espresso", price=Decimal("2.00"))
         first_order = self.create_order()
-        place_order(self.customer, [{"menu_item_id": self.item.pk, "quantity": 1}, {"menu_item_id": second.pk, "quantity": 1}])
-        self.create_order(self.other_customer)
-        client = self.client_for(self.staff)
+        place_order(
+            self.customer,
+            [{"menu_item_id": self.item.pk, "quantity": 1}, {"menu_item_id": second.pk, "quantity": 1}],
+        )
+        third_order = self.create_order()
+        staff_client = self.client_for(self.staff)
+        customer_client = self.client_for(self.customer)
 
-        with self.assertNumQueries(6):
-            response = client.get("/api/orders/")
+        def measured_get(client, path):
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(path)
+            self.assertEqual(response.status_code, 200)
+            return response, len(queries)
+
+        detailed_three, list_queries_three = measured_get(staff_client, "/api/orders/")
+        mine_three, mine_queries_three = measured_get(customer_client, "/api/orders/mine/")
+        queue_three, queue_queries_three = measured_get(staff_client, "/api/orders/queue/")
+
+        for _ in range(12):
+            self.create_order()
+
+        detailed_fifteen, list_queries_fifteen = measured_get(staff_client, "/api/orders/")
+        mine_fifteen, mine_queries_fifteen = measured_get(customer_client, "/api/orders/mine/")
+        queue_fifteen, queue_queries_fifteen = measured_get(staff_client, "/api/orders/queue/")
+
+        self.assertEqual(list_queries_three, list_queries_fifteen)
+        self.assertEqual(mine_queries_three, mine_queries_fifteen)
+        self.assertEqual(queue_queries_three, queue_queries_fifteen)
+        self.assertEqual(len(detailed_three.data["results"]), 3)
+        self.assertEqual(len(detailed_fifteen.data["results"]), 15)
+        self.assertEqual(len(mine_three.data["results"]), 3)
+        self.assertEqual(len(mine_fifteen.data["results"]), 15)
+        self.assertEqual(len(queue_three.data["results"]), 3)
+        self.assertEqual(len(queue_fifteen.data["results"]), 15)
+        self.assertEqual(detailed_three.data["results"][0]["items"][0]["item_name"], "Mocha")
+        self.assertEqual(first_order.items.count(), 1)
+        self.assertIsNotNone(third_order.pk)
+
+
+class OrderPageTests(TestCase):
+    def setUp(self):
+        self.customer = User.objects.create_user(username="page-customer", password="safe-pass-123")
+        self.staff = User.objects.create_user(username="page-staff", password="safe-pass-123")
+        self.staff.profile.role = Profile.Role.STAFF
+        self.staff.profile.save()
+        self.admin = User.objects.create_user(username="page-manager", password="safe-pass-123")
+        self.admin.profile.role = Profile.Role.ADMIN
+        self.admin.profile.save()
+        self.category = Category.objects.create(name="Cafe drinks")
+        self.item = MenuItem.objects.create(category=self.category, name="Cappuccino", price=Decimal("4.75"))
+
+    def client_for(self, user):
+        client = APIClient()
+        client.force_login(user)
+        return client
+
+    def make_order(self, quantity=1):
+        return place_order(self.customer, [{"menu_item_id": self.item.pk, "quantity": quantity}])
+
+    def test_customer_cart_and_order_pages_are_role_protected(self):
+        order = self.make_order()
+        customer_client = self.client_for(self.customer)
+        self.assertEqual(customer_client.get("/orders/cart/").status_code, 200)
+        mine = customer_client.get("/orders/mine/")
+        self.assertEqual(mine.status_code, 200)
+        self.assertContains(mine, f"Order #{order.pk}")
+        self.assertContains(mine, "live_orders.js")
+
+        self.assertEqual(self.client_for(self.staff).get("/orders/cart/").status_code, 403)
+        self.assertEqual(self.client_for(self.admin).get("/orders/mine/").status_code, 403)
+
+    def test_staff_queue_page_displays_active_orders_and_is_staff_only(self):
+        self.make_order()
+
+        response = self.client_for(self.staff).get("/orders/queue/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 3)
-        self.assertEqual(response.data["results"][0]["items"][0]["item_name"], "Mocha")
-        self.assertEqual(first_order.items.count(), 1)
+        self.assertContains(response, "Cappuccino")
+        self.assertContains(response, "staff_queue.js")
+        self.assertEqual(self.client_for(self.customer).get("/orders/queue/").status_code, 403)
+
+    def test_admin_dashboard_aggregates_orders_and_collected_revenue(self):
+        collected = self.make_order(quantity=2)
+        collected.transition_to(Order.Status.PREPARING, self.staff)
+        collected.transition_to(Order.Status.READY, self.staff)
+        collected.transition_to(Order.Status.COLLECTED, self.staff)
+        self.make_order(quantity=1)
+        yesterday = self.make_order(quantity=5)
+        yesterday.transition_to(Order.Status.PREPARING, self.staff)
+        yesterday.transition_to(Order.Status.READY, self.staff)
+        yesterday.transition_to(Order.Status.COLLECTED, self.staff)
+        Order.objects.filter(pk=yesterday.pk).update(created_at=timezone.now() - timedelta(days=1))
+
+        response = self.client_for(self.admin).get("/orders/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["orders_today"], 2)
+        self.assertEqual(response.context["revenue_today"], Decimal("9.50"))
+        self.assertEqual(response.context["revenue_rule"], "Revenue includes only orders collected today.")
+        self.assertEqual(response.context["top_items"][0]["quantity_sold"], 2)
+        self.assertEqual(response.context["top_items"][0]["revenue"], Decimal("9.50"))
+        self.assertContains(response, "Revenue includes only orders collected today.")
+        self.assertEqual(self.client_for(self.staff).get("/orders/dashboard/").status_code, 403)

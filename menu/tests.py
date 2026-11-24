@@ -125,3 +125,4 @@ class MenuRoleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Flat White")
         self.assertNotContains(response, "Cold Brew")
+        self.assertContains(response, "Add")

@@ -1,0 +1,21 @@
+{% extends "accounts/base.html" %}
+{% load static %}
+{% block title %}Cart · CafeCorner{% endblock %}
+{% block content %}
+<header class="mb-4">
+  <p class="text-uppercase text-muted small mb-2">Your order</p>
+  <h1 class="display-6">Cart</h1>
+  <p class="text-muted">Review quantities before placing your order.</p>
+</header>
+<form id="order-cart-form" class="card border-0 shadow-sm p-4">
+  {% csrf_token %}
+  <div data-cart-lines></div>
+  <div class="d-flex justify-content-between border-top pt-3 mt-3">
+    <span class="fw-semibold">Estimated total</span><span class="fw-semibold" data-cart-total>₹0.00</span>
+  </div>
+  <p class="form-text mt-2">The cafe confirms the final total using current menu prices.</p>
+  <div class="alert alert-danger d-none mt-2" role="alert" data-cart-error></div>
+  <div class="d-flex gap-2 mt-3"><a class="btn btn-outline-secondary" href="{% url 'browse-menu' %}">Continue browsing</a><button class="btn btn-primary" type="submit" data-place-order>Place order</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/cart_page.js' %}" defer></script>{% endblock %}

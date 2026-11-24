@@ -1,0 +1,15 @@
+{% extends "accounts/base.html" %}
+{% block title %}Admin dashboard · CafeCorner{% endblock %}
+{% block container_style %}max-width: 100%{% endblock %}
+{% block content %}
+<header class="mb-4"><p class="text-uppercase text-muted small mb-2">Manager overview · {{ today|date:"M j, Y" }}</p><h1 class="display-6">Cafe dashboard</h1></header>
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><section class="card border-0 shadow-sm h-100"><div class="card-body"><p class="text-muted mb-1">Orders today</p><div class="display-6">{{ orders_today }}</div><p class="small text-muted mb-0">All orders placed today.</p></div></section></div>
+  <div class="col-md-6"><section class="card border-0 shadow-sm h-100"><div class="card-body"><p class="text-muted mb-1">Revenue today</p><div class="display-6">₹{{ revenue_today|floatformat:2 }}</div><p class="small text-muted mb-0">{{ revenue_rule }}</p></div></section></div>
+</div>
+<section class="card border-0 shadow-sm"><div class="card-header bg-white py-3"><h2 class="h5 mb-0">Top items today</h2><p class="small text-muted mb-0">Ranked by quantity in collected orders.</p></div>
+  <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Menu item</th><th class="text-end">Quantity</th><th class="text-end">Collected sales</th></tr></thead><tbody>
+  {% for item in top_items %}<tr><td>{{ item.menu_item__name }}</td><td class="text-end">{{ item.quantity_sold }}</td><td class="text-end">₹{{ item.revenue|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">No collected orders today yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

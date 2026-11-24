@@ -14,6 +14,10 @@ class InvalidOrderTransition(ValueError):
     pass
 
 
+class StaleOrderStatus(ValueError):
+    pass
+
+
 MAX_QUANTITY_PER_LINE = 20
 
 

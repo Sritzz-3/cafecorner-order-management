@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
+from django.utils import timezone
 
 
 class Order(models.Model):
@@ -30,39 +31,40 @@ class Order(models.Model):
     class Meta:
         ordering = ("created_at", "pk")
 
-    def transition_to(self, new_status, actor):
-        """Apply one allowed transition and keep its audit row in the same transaction."""
-        from orders.services import InvalidOrderTransition
+    def transition_to(self, new_status, actor, expected_status=None):
+        """Conditionally apply a transition so stale staff actions cannot overwrite newer state."""
+        from orders.services import InvalidOrderTransition, StaleOrderStatus
 
+        expected = expected_status or self.status
+        if new_status not in self.ALLOWED_TRANSITIONS[expected]:
+            raise InvalidOrderTransition(f"Cannot move an order from {expected} to {new_status}.")
         with transaction.atomic():
-            current = Order.objects.select_for_update().get(pk=self.pk)
-            if new_status not in self.ALLOWED_TRANSITIONS[current.status]:
-                raise InvalidOrderTransition(f"Cannot move an order from {current.status} to {new_status}.")
-
-            previous_status = current.status
-            current.status = new_status
-            current.save(update_fields=("status", "updated_at"))
+            now = timezone.now()
+            changed = Order.objects.filter(pk=self.pk, status=expected).update(status=new_status, updated_at=now)
+            if changed != 1:
+                raise StaleOrderStatus("This order changed before your update. Refresh the queue and try again.")
             OrderStatusHistory.objects.create(
-                order=current,
-                old_status=previous_status,
+                order_id=self.pk,
+                old_status=expected,
                 new_status=new_status,
                 actor=actor,
             )
-            self.status = current.status
-            self.updated_at = current.updated_at
-            return current
+            self.status = new_status
+            self.updated_at = now
+            return self
 
-    def advance(self, actor):
+    def advance(self, actor, expected_status=None):
         """Move to the next forward state; cancellation stays a customer action."""
+        expected = expected_status or self.status
         forward_status = next(
-            (status for status in self.ALLOWED_TRANSITIONS[self.status] if status != self.Status.CANCELLED),
+            (status for status in self.ALLOWED_TRANSITIONS[expected] if status != self.Status.CANCELLED),
             None,
         )
         if forward_status is None:
             from orders.services import InvalidOrderTransition
 
-            raise InvalidOrderTransition(f"Order in {self.status} cannot advance further.")
-        return self.transition_to(forward_status, actor)
+            raise InvalidOrderTransition(f"Order in {expected} cannot advance further.")
+        return self.transition_to(forward_status, actor, expected_status=expected)
 
     def __str__(self):
         return f"Order #{self.pk} ({self.status})"

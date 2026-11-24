@@ -1,0 +1,25 @@
+{% extends "accounts/base.html" %}
+{% load static %}
+{% block title %}Order queue · CafeCorner{% endblock %}
+{% block container_style %}max-width: 980px{% endblock %}
+{% block content %}
+<header class="d-flex justify-content-between align-items-end mb-4">
+  <div><p class="text-uppercase text-muted small mb-2">Kitchen and counter</p><h1 class="display-6 mb-0">Live order queue</h1></div>
+  <span class="badge text-bg-success" data-live-indicator>Live updates on</span>
+</header>
+<input type="hidden" data-csrf-token value="{{ csrf_token }}">
+<div data-staff-queue data-endpoint="/api/orders/queue/">
+  {% for order in orders %}
+    <article class="card border-0 shadow-sm mb-3" data-order-id="{{ order.id }}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between gap-3"><h2 class="h5">Order #{{ order.id }} <span class="text-muted fs-6">· {{ order.customer.username }}</span></h2><span class="badge text-bg-primary" data-order-status>{{ order.get_status_display }}</span></div>
+        <ul class="small">{% for line in order.items.all %}<li>{{ line.quantity }} × {{ line.menu_item.name }}</li>{% endfor %}</ul>
+        <div class="d-flex justify-content-between align-items-center"><span class="fw-semibold">₹{{ order.total }}</span><button class="btn btn-sm btn-primary" data-advance-order data-order-id="{{ order.id }}">{% if order.status == "PLACED" %}Start preparing{% elif order.status == "PREPARING" %}Mark ready{% else %}Mark collected{% endif %}</button></div>
+      </div>
+    </article>
+  {% empty %}
+    <div class="text-center bg-white border rounded-3 p-5" data-empty-queue><h2 class="h5">Queue is clear</h2><p class="text-muted mb-0">New orders will appear here automatically.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/staff_queue.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "accounts/base.html" %}
+{% load static %}
+{% block title %}My orders · CafeCorner{% endblock %}
+{% block content %}
+<header class="d-flex justify-content-between align-items-end mb-4">
+  <div><p class="text-uppercase text-muted small mb-2">Order history</p><h1 class="display-6 mb-0">My orders</h1></div>
+  <span class="badge text-bg-success" data-live-indicator>Live updates on</span>
+</header>
+<div data-live-orders data-endpoint="/api/orders/mine/">
+  {% for order in orders %}
+    <article class="card border-0 shadow-sm mb-3" id="order-{{ order.id }}" data-order-id="{{ order.id }}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between gap-3"><h2 class="h6 mb-1">Order #{{ order.id }}</h2><span class="badge text-bg-primary" data-order-status>{{ order.get_status_display }}</span></div>
+        <p class="small text-muted mb-2">Placed {{ order.created_at|date:"M j, Y · H:i" }}</p>
+        <ul class="small mb-2">{% for line in order.items.all %}<li>{{ line.quantity }} × {{ line.menu_item.name }} <span class="text-muted">(₹{{ line.unit_price }})</span></li>{% endfor %}</ul>
+        <div class="fw-semibold">Total: ₹{{ order.total }}</div>
+      </div>
+    </article>
+  {% empty %}
+    <div class="text-center bg-white border rounded-3 p-5" data-empty-orders><h2 class="h5">No orders yet</h2><p class="text-muted">Your next cafe favorite is on the menu.</p><a class="btn btn-primary" href="{% url 'browse-menu' %}">Browse menu</a></div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/live_orders.js' %}" defer></script>{% endblock %}

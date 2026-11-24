@@ -13,7 +13,7 @@
       {% for item in category.items.all %}
         <article class="list-group-item py-3 d-flex justify-content-between gap-3">
           <div><h3 class="h6 mb-1">{{ item.name }}</h3>{% if item.description %}<p class="text-muted small mb-0">{{ item.description }}</p>{% endif %}</div>
-          <span class="fw-semibold text-nowrap">${{ item.price }}</span>
+          <div class="text-end text-nowrap"><span class="fw-semibold">₹{{ item.price }}</span>{% if user.profile.role == "CUSTOMER" %}<div><button class="btn btn-sm btn-outline-primary mt-1" data-add-to-cart data-id="{{ item.id }}" data-name="{{ item.name }}" data-price="{{ item.price }}">Add</button></div>{% endif %}</div>
         </article>
       {% endfor %}
     </div>

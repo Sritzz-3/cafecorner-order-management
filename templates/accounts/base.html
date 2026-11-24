@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,6 +13,9 @@
       <a class="navbar-brand fw-semibold" href="/">CafeCorner</a>
       <div class="d-flex gap-3 align-items-center">
         {% if user.is_authenticated %}
+          {% if user.profile.role == "CUSTOMER" %}<a href="{% url 'browse-menu' %}">Menu</a><a href="{% url 'order_pages:mine' %}">My orders</a><a href="{% url 'order_pages:cart' %}">Cart <span class="badge text-bg-secondary" data-cart-count>0</span></a>{% endif %}
+          {% if user.profile.role == "STAFF" or user.profile.role == "ADMIN" %}<a href="{% url 'order_pages:queue' %}">Order queue</a>{% endif %}
+          {% if user.profile.role == "ADMIN" %}<a href="{% url 'order_pages:dashboard' %}">Dashboard</a>{% endif %}
           <span class="text-muted">{{ user.username }} · {{ user.profile.get_role_display }}</span>
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Log out</button></form>
         {% else %}
@@ -20,9 +24,11 @@
       </div>
     </div>
   </nav>
-  <main class="container" style="max-width: 760px">
+  <main class="container {% block container_class %}{% endblock %}" style="{% block container_style %}max-width: 760px{% endblock %}">
     {% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
+  <script src="{% static 'js/menu_cart.js' %}" defer></script>
 </body>
 </html>

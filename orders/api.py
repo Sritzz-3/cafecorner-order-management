@@ -13,7 +13,7 @@ from orders.serializers import (
     OrderStatusHistorySerializer,
     OrderSummarySerializer,
 )
-from orders.services import InvalidOrderRequest, InvalidOrderTransition, place_order
+from orders.services import InvalidOrderRequest, InvalidOrderTransition, StaleOrderStatus, place_order
 
 
 ORDER_READERS = IsCustomer | IsStaffRole | IsAdminRole
@@ -108,6 +108,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             raise Http404
         try:
             order.transition_to(Order.Status.CANCELLED, request.user)
+        except StaleOrderStatus as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
         except InvalidOrderTransition as exc:
             raise ValidationError({"detail": str(exc)})
         return Response(OrderDetailSerializer(order).data)
@@ -117,6 +119,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         try:
             order.advance(request.user)
+        except StaleOrderStatus as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
         except InvalidOrderTransition as exc:
             raise ValidationError({"detail": str(exc)})
         return Response(OrderDetailSerializer(order).data)
