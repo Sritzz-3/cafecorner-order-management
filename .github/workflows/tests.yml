@@ -13,4 +13,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -r requirements.txt
-      - run: python manage.py test
+      - run: coverage run manage.py test && coverage report
+        env:
+          SECRET_KEY: ci-test-key

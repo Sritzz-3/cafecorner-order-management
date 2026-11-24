@@ -1,12 +1,15 @@
 import environ
+from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(DEBUG=(bool, False))
 environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env("SECRET_KEY", default="development-only-change-me")
 DEBUG = env("DEBUG")
+SECRET_KEY = env("SECRET_KEY", default="")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("Set SECRET_KEY in the environment or local .env file.")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
 INSTALLED_APPS = [
@@ -17,7 +20,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework.authtoken",
     "drf_spectacular",
+    "accounts.apps.AccountsConfig",
 ]
 
 MIDDLEWARE = [
