@@ -16,7 +16,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Tech stack
 
-Python 3, Django 4.2, Django REST Framework, SQLite for local development, drf-spectacular, Bootstrap, and vanilla JavaScript. The standalone printer client uses `requests`; `python-escpos` is an optional thermal-printer dependency.
+Python 3.9 and 3.11 are supported and tested in CI. The app uses Django 4.2, Django REST Framework, SQLite for local development, drf-spectacular, Bootstrap, and vanilla JavaScript. The standalone printer client uses `requests`; `python-escpos` is an optional thermal-printer dependency.
 
 ## Run on macOS
 
@@ -58,12 +58,14 @@ Pages: menu `/menu/`, cart `/orders/cart/`, my orders `/orders/mine/`, staff que
 
 ## Tests
 
-Run the Django suite and standalone printer-client suite from the repository root:
+The root requirements install both the Django app dependencies and the printer client's minimal `requests` dependencies in one step. Run both suites from the repository root:
 
 ```sh
 python manage.py test
 python -m unittest discover -s printer_client/tests
 ```
+
+The Django suite contains 59 tests; the standalone printer-client suite contains 7 (66 total).
 
 For coverage (install requirements first):
 
