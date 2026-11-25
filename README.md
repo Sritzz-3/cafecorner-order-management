@@ -65,7 +65,7 @@ python manage.py test
 python -m unittest discover -s printer_client/tests
 ```
 
-The Django suite contains 59 tests; the standalone printer-client suite contains 7 (66 total).
+The Django suite contains 67 tests; the standalone printer-client suite contains 7 (74 total).
 
 For coverage (install requirements first):
 
