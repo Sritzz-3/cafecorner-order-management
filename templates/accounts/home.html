@@ -5,6 +5,20 @@
   <p class="text-uppercase text-muted small mb-2">Cafe order management</p>
   <h1 class="display-6">Welcome to CafeCorner</h1>
   <p class="lead">A clear view of the cafe experience, from ordering to collection.</p>
-  {% if not user.is_authenticated %}<a class="btn btn-primary" href="{% url 'register' %}">Create a customer account</a>{% else %}<p class="mb-0">Signed in as {{ user.profile.get_role_display }}.</p>{% endif %}
+  {% if not user.is_authenticated %}
+    <a class="btn btn-primary" href="{% url 'register' %}">Create a customer account</a>
+    <a class="btn btn-outline-primary ms-2" href="{% url 'login' %}">Log in</a>
+  {% elif user.profile.role == "CUSTOMER" %}
+    <p>Signed in as {{ user.profile.get_role_display }}.</p>
+    <a class="btn btn-primary" href="{% url 'browse-menu' %}">Browse the menu</a>
+  {% elif user.profile.role == "STAFF" %}
+    <p>Signed in as {{ user.profile.get_role_display }}.</p>
+    <a class="btn btn-primary" href="{% url 'order_pages:queue' %}">Open the order queue</a>
+  {% elif user.profile.role == "ADMIN" or user.is_superuser %}
+    <p>Signed in as {{ user.profile.get_role_display }}.</p>
+    <a class="btn btn-primary" href="{% url 'order_pages:dashboard' %}">Open the dashboard</a>
+  {% else %}
+    <p class="mb-0">Signed in as {{ user.username }}.</p>
+  {% endif %}
 </section>
 {% endblock %}

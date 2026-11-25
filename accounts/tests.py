@@ -18,6 +18,12 @@ class AccountRoleTests(TestCase):
         user.profile.save()
 
         self.assertEqual(list(user.groups.values_list("name", flat=True)), ["Staff"])
+        self.client.force_login(user)
+        homepage = self.client.get("/")
+        self.assertEqual(homepage.status_code, 200)
+        self.assertContains(homepage, "Open the order queue")
+        self.assertContains(homepage, 'data-bs-toggle="collapse"')
+        self.assertContains(homepage, "Order queue")
 
     def test_registration_creates_customer(self):
         response = self.client.post(
@@ -54,6 +60,12 @@ class AccountRoleTests(TestCase):
         self.assertEqual(response.data["role"], Profile.Role.CUSTOMER)
         self.assertEqual(response.data["username"], "api-customer")
         self.assertNotIn("other-customer", str(response.data))
+
+        self.client.force_login(user)
+        homepage = self.client.get("/")
+        self.assertTemplateUsed(homepage, "accounts/home.html")
+        self.assertContains(homepage, "Browse the menu")
+        self.assertContains(homepage, "My orders")
 
     def test_profile_api_does_not_allow_role_updates(self):
         user = User.objects.create_user(username="api-safe", password="safe-password-123")
