@@ -16,17 +16,20 @@
       </button>
       <div class="collapse navbar-collapse" id="main-navigation">
         <div class="navbar-nav me-auto">
+          <a class="nav-link" href="{% url 'browse-menu' %}">Menu</a>
           {% if user.is_authenticated %}
             {% if user.profile.role == "CUSTOMER" %}
-              <a class="nav-link" href="{% url 'browse-menu' %}">Menu</a>
-              <a class="nav-link" href="{% url 'order_pages:mine' %}">My orders</a>
+              <a class="nav-link" href="{% url 'order_pages:mine' %}">My Orders</a>
               <a class="nav-link" href="{% url 'order_pages:cart' %}">Cart <span class="badge text-bg-secondary" data-cart-count>0</span></a>
             {% endif %}
-            {% if user.profile.role == "STAFF" or user.profile.role == "ADMIN" %}
-              <a class="nav-link" href="{% url 'order_pages:queue' %}">Order queue</a>
+            {% if user.profile.role == "STAFF" or user.profile.role == "ADMIN" or user.is_superuser %}
+              <a class="nav-link" href="{% url 'order_pages:queue' %}">Queue</a>
             {% endif %}
-            {% if user.profile.role == "ADMIN" %}
+            {% if user.profile.role == "ADMIN" or user.is_superuser %}
               <a class="nav-link" href="{% url 'order_pages:dashboard' %}">Dashboard</a>
+            {% endif %}
+            {% if user.is_superuser or user.profile.role == "ADMIN" and user.is_staff %}
+              <a class="nav-link" href="{% url 'admin:index' %}">Admin</a>
             {% endif %}
           {% endif %}
         </div>
@@ -35,7 +38,7 @@
           <span class="text-muted">{{ user.username }} · {{ user.profile.get_role_display }}</span>
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Log out</button></form>
         {% else %}
-          <a href="{% url 'login' %}">Log in</a><a href="{% url 'register' %}">Create account</a>
+          <a href="{% url 'login' %}">Login</a><a href="{% url 'register' %}">Register</a>
         {% endif %}
         </div>
       </div>
